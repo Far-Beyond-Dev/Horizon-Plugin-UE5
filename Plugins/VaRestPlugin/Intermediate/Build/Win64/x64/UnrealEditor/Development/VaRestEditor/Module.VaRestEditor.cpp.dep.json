@@ -1,0 +1,37 @@
+{
+    "Version": "1.2",
+    "Data": {
+        "Source": "c:\\github\\stars-beyond-game\\plugins\\varestplugin\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\varesteditor\\module.varesteditor.cpp",
+        "ProvidedModule": "",
+        "PCH": "c:\\github\\stars-beyond-game\\intermediate\\build\\win64\\x64\\stars_beyondeditor\\development\\unrealed\\sharedpch.unrealed.project.valapi.cpp20.inclorderoldest.h.pch",
+        "Includes": [
+            "c:\\github\\stars-beyond-game\\plugins\\varestplugin\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\varesteditor\\definitions.varesteditor.h",
+            "c:\\github\\stars-beyond-game\\plugins\\varestplugin\\intermediate\\build\\win64\\unrealeditor\\inc\\varesteditor\\uht\\varesteditor.init.gen.cpp",
+            "c:\\github\\stars-beyond-game\\plugins\\varestplugin\\intermediate\\build\\win64\\unrealeditor\\inc\\varesteditor\\uht\\varest_breakjson.gen.cpp",
+            "c:\\github\\stars-beyond-game\\plugins\\varestplugin\\source\\varesteditor\\public\\varest_breakjson.h",
+            "c:\\github\\stars-beyond-game\\plugins\\varestplugin\\intermediate\\build\\win64\\unrealeditor\\inc\\varesteditor\\uht\\varest_breakjson.generated.h",
+            "c:\\github\\stars-beyond-game\\plugins\\varestplugin\\source\\varesteditor\\private\\varesteditor.cpp",
+            "c:\\github\\stars-beyond-game\\plugins\\varestplugin\\source\\varesteditor\\public\\varesteditor.h",
+            "c:\\github\\stars-beyond-game\\plugins\\varestplugin\\source\\varesteditor\\private\\varest_breakjson.cpp",
+            "c:\\program files\\epic games\\ue_5.4\\engine\\source\\editor\\blueprintgraph\\public\\blueprintactiondatabaseregistrar.h",
+            "c:\\program files\\epic games\\ue_5.4\\engine\\source\\editor\\blueprintgraph\\public\\blueprintactiondatabase.h",
+            "c:\\program files\\epic games\\ue_5.4\\engine\\source\\editor\\blueprintgraph\\public\\blueprintnodespawner.h",
+            "c:\\program files\\epic games\\ue_5.4\\engine\\intermediate\\build\\win64\\unrealeditor\\inc\\blueprintgraph\\uht\\blueprintnodespawner.generated.h",
+            "c:\\program files\\epic games\\ue_5.4\\engine\\source\\editor\\unrealed\\public\\edgraphutilities.h",
+            "c:\\program files\\epic games\\ue_5.4\\engine\\source\\editor\\unrealed\\public\\editorcategoryutils.h",
+            "c:\\program files\\epic games\\ue_5.4\\engine\\source\\editor\\kismetcompiler\\public\\kismetcompiler.h",
+            "c:\\program files\\epic games\\ue_5.4\\engine\\source\\editor\\kismetcompiler\\public\\bpterminal.h",
+            "c:\\program files\\epic games\\ue_5.4\\engine\\source\\editor\\kismetcompiler\\public\\edgraphcompilerutilities.h",
+            "c:\\program files\\epic games\\ue_5.4\\engine\\source\\editor\\blueprintgraph\\classes\\k2node_event.h",
+            "c:\\program files\\epic games\\ue_5.4\\engine\\source\\editor\\blueprintgraph\\classes\\k2node_eventnodeinterface.h",
+            "c:\\program files\\epic games\\ue_5.4\\engine\\intermediate\\build\\win64\\unrealeditor\\inc\\blueprintgraph\\uht\\k2node_eventnodeinterface.generated.h",
+            "c:\\program files\\epic games\\ue_5.4\\engine\\source\\editor\\kismetcompiler\\public\\kismetcompilermisc.h",
+            "c:\\program files\\epic games\\ue_5.4\\engine\\source\\editor\\kismetcompiler\\public\\blueprintcompiledstatement.h",
+            "c:\\program files\\epic games\\ue_5.4\\engine\\intermediate\\build\\win64\\unrealeditor\\inc\\blueprintgraph\\uht\\k2node_event.generated.h",
+            "c:\\program files\\epic games\\ue_5.4\\engine\\source\\editor\\kismetcompiler\\public\\kismetcompiledfunctioncontext.h",
+            "c:\\program files\\epic games\\ue_5.4\\engine\\source\\editor\\kismetcompiler\\public\\kismetcastingutils.h"
+        ],
+        "ImportedModules": [],
+        "ImportedHeaderUnits": []
+    }
+}

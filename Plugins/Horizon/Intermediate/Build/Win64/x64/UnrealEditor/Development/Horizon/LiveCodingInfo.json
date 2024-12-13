@@ -1,0 +1,13 @@
+{
+	"RemapUnityFiles": 
+	{
+		"Module.Horizon.cpp.obj": [
+			"Horizon.init.gen.cpp.obj",
+			"HorizonBPLibrary.gen.cpp.obj",
+			"ServerManager.gen.cpp.obj",
+			"Horizon.cpp.obj",
+			"HorizonBPLibrary.cpp.obj",
+			"ServerManager.cpp.obj"
+		]
+	}
+}

@@ -1,0 +1,12 @@
+/NOLOGO
+/errorReport:prompt
+/MACHINE:x64
+/SUBSYSTEM:WINDOWS
+/DEF
+/NAME:"UnrealEditor-VaRest.dll"
+/IGNORE:4221
+/NODEFAULTLIB
+"C:\Github\Stars-Beyond-Game\Intermediate\Build\Win64\x64\Stars_BeyondEditor\Development\UnrealEd\SharedPCH.UnrealEd.Project.ValApi.Cpp20.InclOrderOldest.h.obj"
+"C:\Github\Stars-Beyond-Game\Plugins\VaRestPlugin\Intermediate\Build\Win64\x64\UnrealEditor\Development\VaRest\Module.VaRest.cpp.obj"
+"C:\Github\Stars-Beyond-Game\Plugins\VaRestPlugin\Intermediate\Build\Win64\x64\UnrealEditor\Development\VaRest\Default.rc2.res"
+/OUT:"C:\Github\Stars-Beyond-Game\Plugins\VaRestPlugin\Intermediate\Build\Win64\x64\UnrealEditor\Development\VaRest\UnrealEditor-VaRest.lib"
