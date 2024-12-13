@@ -1,0 +1,12 @@
+/NOLOGO
+/errorReport:prompt
+/MACHINE:x64
+/SUBSYSTEM:WINDOWS
+/DEF
+/NAME:"UnrealEditor-SIOJson.dll"
+/IGNORE:4221
+/NODEFAULTLIB
+"C:\Github\Stars-Beyond-Game\Intermediate\Build\Win64\x64\Stars_BeyondEditor\Development\UnrealEd\SharedPCH.UnrealEd.Project.ValApi.Cpp20.InclOrderOldest.h.obj"
+"C:\Github\Stars-Beyond-Game\Plugins\SocketIOClient\Intermediate\Build\Win64\x64\UnrealEditor\Development\SIOJson\Module.SIOJson.cpp.obj"
+"C:\Github\Stars-Beyond-Game\Plugins\SocketIOClient\Intermediate\Build\Win64\x64\UnrealEditor\Development\SIOJson\Default.rc2.res"
+/OUT:"C:\Github\Stars-Beyond-Game\Plugins\SocketIOClient\Intermediate\Build\Win64\x64\UnrealEditor\Development\SIOJson\UnrealEditor-SIOJson.lib"

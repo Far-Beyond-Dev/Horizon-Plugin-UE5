@@ -1,0 +1,14 @@
+{
+    "Version": "1.2",
+    "Data": {
+        "Source": "c:\\github\\stars-beyond-game\\plugins\\horizon\\source\\horizon\\private\\horizon.cpp",
+        "ProvidedModule": "",
+        "PCH": "c:\\github\\stars-beyond-game\\intermediate\\build\\win64\\x64\\stars_beyondeditor\\development\\unrealed\\sharedpch.unrealed.project.valapi.cpp20.inclorderoldest.h.pch",
+        "Includes": [
+            "c:\\github\\stars-beyond-game\\plugins\\horizon\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\horizon\\definitions.horizon.h",
+            "c:\\github\\stars-beyond-game\\plugins\\horizon\\source\\horizon\\public\\horizon.h"
+        ],
+        "ImportedModules": [],
+        "ImportedHeaderUnits": []
+    }
+}
