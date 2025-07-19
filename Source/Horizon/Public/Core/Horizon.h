@@ -23,17 +23,16 @@ HORIZON_API DECLARE_LOG_CATEGORY_EXTERN(LogHorizon, Log, All);
  * 
  * This module provides a complete WebSocket communication system optimized for single-client
  * scenarios in Unreal Engine 5. It manages initialization and shutdown of all plugin subsystems
- * including WebSocket connections, thread pools, and performance monitoring.
+ * including WebSocket connections, thread pools, and high-performance features.
  * 
  * Key Features:
  * - Single WebSocket client per game instance (optimized for single-player games)
  * - Multithreaded message processing with configurable thread pools
  * - High-performance batch and immediate message sending
- * - Comprehensive performance monitoring and debugging tools
  * - Full Blueprint and C++ integration
  * 
  * @see UHorizonSubsystem for game-level WebSocket management
- * @see UHorizonBlueprintLibrary for Blueprint integration
+ * @see UHorizonUtility for Blueprint integration
  */
 class HORIZON_API FHorizonModule : public IModuleInterface
 {
@@ -87,18 +86,6 @@ public:
 	 */
 	bool IsHighPerformanceAvailable() const { return bHighPerformanceInitialized; }
 
-	/**
-	 * Checks if the thread pool is available and initialized
-	 * @return True if thread pool is ready for use
-	 */
-	bool IsThreadPoolAvailable() const { return bThreadPoolInitialized; }
-
-	/**
-	 * Checks if performance monitoring is available and initialized
-	 * @return True if performance monitoring is ready for use
-	 */
-	bool IsPerformanceMonitoringAvailable() const { return bPerformanceMonitoringInitialized; }
-
 private:
 	/**
 	 * @name Subsystem Initialization Functions
@@ -115,16 +102,6 @@ private:
 	void InitializeHighPerformance();
 	/** Shutdown high-performance messaging features */
 	void ShutdownHighPerformance();
-	
-	/** Initialize thread pool for async operations */
-	void InitializeThreadPool();
-	/** Shutdown thread pool and wait for completion */
-	void ShutdownThreadPool();
-	
-	/** Initialize performance monitoring system */
-	void InitializePerformanceMonitoring();
-	/** Shutdown performance monitoring system */
-	void ShutdownPerformanceMonitoring();
 
 	/** @} */
 
@@ -138,10 +115,6 @@ private:
 	bool bWebSocketInitialized = false;
 	/** True if high-performance features are initialized and ready */
 	bool bHighPerformanceInitialized = false;
-	/** True if thread pool is initialized and ready */
-	bool bThreadPoolInitialized = false;
-	/** True if performance monitoring is initialized and ready */
-	bool bPerformanceMonitoringInitialized = false;
 
 	/** @} */
 };

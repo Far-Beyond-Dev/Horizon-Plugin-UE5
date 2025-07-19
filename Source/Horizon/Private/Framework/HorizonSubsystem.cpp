@@ -74,33 +74,13 @@ FString UHorizonSubsystem::GetHorizonStatus() const
 	return Status;
 }
 
-void UHorizonSubsystem::SetGlobalThreadPoolSize(int32 ThreadPoolSize)
-{
-	// Apply to existing client
-	if (ManagedClient)
-	{
-		ManagedClient->ThreadPoolSize = FMath::Clamp(ThreadPoolSize, 0, 32);
-	}
-	
-	UE_LOG(LogHorizon, Log, TEXT("Horizon thread pool size set to %d"), ThreadPoolSize);
-}
-
-void UHorizonSubsystem::SetGlobalMaxPendingMessages(int32 MaxMessages)
-{
-	// Apply to existing client
-	if (ManagedClient)
-	{
-		ManagedClient->MaxPendingMessages = FMath::Clamp(MaxMessages, 1000, 1000000);
-	}
-	
-	UE_LOG(LogHorizon, Log, TEXT("Horizon max pending messages set to %d"), MaxMessages);
-}
-
 FString UHorizonSubsystem::GetGlobalPerformanceStats(bool bIncludeDetailedStats) const
 {
 	if (ManagedClient)
 	{
-		return ManagedClient->GetPerformanceStats(bIncludeDetailedStats);
+		return FString::Printf(TEXT("Connected: %s, State: %s"), 
+			ManagedClient->IsConnected() ? TEXT("true") : TEXT("false"),
+			*UEnum::GetValueAsString(ManagedClient->GetConnectionState()));
 	}
 	
 	return TEXT("No WebSocket client created");

@@ -32,11 +32,6 @@ class FSocket;
 
 namespace Horizon
 {
-	namespace Threading
-	{
-		class FThreadPool;
-	}
-	
 	namespace WebSocket
 	{
 		class FHorizonMessage;
@@ -45,31 +40,18 @@ namespace Horizon
 
 /**
  * @class UHorizonWebSocketClient
- * @brief High-performance WebSocket client for UE5 applications
+ * @brief Simple WebSocket client for UE5 applications
  * 
- * The HorizonWebSocketClient provides a robust, thread-safe WebSocket implementation
- * designed for real-time communication with custom servers. It handles connection
- * management, message batching, automatic reconnection, and performance optimization.
+ * The HorizonWebSocketClient provides a WebSocket implementation for real-time 
+ * communication with custom servers. It features a simplified architecture
+ * similar to SocketIOClient for ease of use.
  * 
  * Key Features:
- * - Thread-safe asynchronous message processing
- * - Configurable message batching for optimal throughput
- * - Automatic reconnection with exponential backoff
- * - Built-in heartbeat mechanism for connection health
- * - Performance monitoring and statistics
+ * - Simple connection management
+ * - Automatic reconnection (configurable)
+ * - Heartbeat mechanism for connection health
  * - Blueprint and C++ API support
- * 
- * Architecture:
- * The client operates on multiple threads:
- * - Main Thread: Handles UI updates and Blueprint callbacks
- * - Worker Threads: Process message serialization and network I/O
- * - Timer Thread: Manages heartbeat and reconnection logic
- * 
- * Message Flow:
- * 1. Messages are queued in thread-safe containers
- * 2. Batching system collects messages for efficient transmission
- * 3. Worker threads handle JSON serialization and network sending
- * 4. Incoming messages are processed asynchronously and dispatched to main thread
+ * - Direct message sending (no complex batching)
  * 
  * Usage Example:
  * @code
@@ -77,16 +59,16 @@ namespace Horizon
  * UHorizonWebSocketClient* Client = Subsystem->CreateWebSocket();
  * Client->Connect("ws://localhost:8080", "my-protocol");
  * 
- * // Send immediate message
- * Client->SendMessage("Hello Server", true); // true = high priority
+ * // Send message
+ * Client->SendMessage("Hello Server");
  * 
- * // Send batched message using message factory
- * auto ChatMessage = FHorizonMessageFactory::CreateChatMessage("Player1", "Hello World", "general");
+ * // Send message using utility
+ * FString ChatMessage = UHorizonUtility::MakeChatMessage("Player1", "Hello World", "general");
  * Client->SendMessage(ChatMessage);
  * @endcode
  * 
  * @see UHorizonWebSocketComponent for Blueprint integration
- * @see FHorizonMessageFactory for message creation
+ * @see UHorizonUtility for message creation
  */
 UCLASS(BlueprintType, Blueprintable, meta = (DisplayName = "Horizon WebSocket Client"))
 class HORIZON_API UHorizonWebSocketClient : public UObject, public FTickableGameObject
@@ -207,69 +189,34 @@ public:
 	/**
 	 * Sends a message through the WebSocket connection
 	 * 
-	 * This is the primary method for sending data to the server. Messages can be
-	 * sent in two modes:
-	 * - Batched: Messages are collected and sent in groups for efficiency
-	 * - High Priority: Messages bypass batching and are sent immediately
-	 * 
-	 * Message Format:
-	 * - Plain text messages are automatically wrapped in JSON format
-	 * - Use UHorizonUtility helper functions for structured messages
-	 * - All messages automatically include UUID and timestamp fields
+	 * Messages are sent immediately using simple async tasks.
+	 * Plain text messages are automatically wrapped in JSON format.
 	 * 
 	 * @param Message The message content (plain text or JSON string)
-	 * @param bHighPriority If true, bypasses batching and sends immediately
-	 * @return true if the message was successfully queued for transmission
+	 * @param bHighPriority Unused parameter (kept for API compatibility)
+	 * @return true if the message was successfully sent
 	 * 
-	 * @see UHorizonUtility::CreateChatMessage() for chat messages
-	 * @see UHorizonUtility::CreateGameActionMessage() for game events
-	 * @see SendMessageNow() for immediate sending
+	 * @see UHorizonUtility::MakeChatMessage() for chat messages
+	 * @see UHorizonUtility::MakeGameActionMessage() for game events
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Horizon|WebSocket|Messages")
 	bool SendMessage(const FString& Message, bool bHighPriority = false);
 
-	/**
-	 * Sends a message immediately, bypassing batching
-	 * 
-	 * This method sends messages with the highest priority, bypassing the batching
-	 * system for time-critical communications. Use this for:
-	 * - Real-time position updates
-	 * - Input events
-	 * - Critical game state changes
-	 * - Emergency notifications
-	 * 
-	 * The message is sent directly to the network layer without waiting for
-	 * batch timers or size limits.
-	 * 
-	 * @param Message The message content (plain text or JSON string)
-	 * @return true if the message was successfully sent immediately
-	 * 
-	 * @see SendMessage() for normal batched sending
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Horizon|WebSocket|Messages", meta = (DisplayName = "Send Message Now"))
-	bool SendMessageNow(const FString& Message);
+
 
 	/**
 	 * Sends binary data through the WebSocket connection
 	 * 
-	 * Binary messages are sent as WebSocket binary frames, which are more efficient
-	 * for large data transfers or when you need to send non-text data.
+	 * Binary messages are sent as WebSocket binary frames.
 	 * 
 	 * @param Data The binary data to send
-	 * @param bHighPriority If true, bypasses batching and sends immediately
-	 * @return true if the binary message was successfully queued for transmission
+	 * @param bHighPriority Unused parameter (kept for API compatibility)
+	 * @return true if the binary message was successfully sent
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Horizon|WebSocket|Messages")
 	bool SendBinaryMessage(const TArray<uint8>& Data, bool bHighPriority = false);
 
-	/**
-	 * Sends binary data immediately, bypassing batching
-	 * 
-	 * @param Data The binary data to send immediately
-	 * @return true if the binary message was successfully sent immediately
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Horizon|WebSocket|Messages", meta = (DisplayName = "Send Binary Message Now"))
-	bool SendBinaryMessageNow(const TArray<uint8>& Data);
+
 
 	// Connection Status
 	
@@ -292,7 +239,7 @@ public:
 	/**
 	 * Enable or disable automatic reconnection
 	 * When enabled, the client will automatically attempt to reconnect
-	 * after connection loss with exponential backoff
+	 * after connection loss with simple retry logic
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horizon|WebSocket|Connection")
 	bool bAutoReconnect = true;
@@ -306,7 +253,7 @@ public:
 
 	/**
 	 * Delay between reconnection attempts in seconds
-	 * Each attempt uses exponential backoff: delay * (2 ^ attempt_number)
+	 * Simple delay used between reconnection attempts
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horizon|WebSocket|Connection", meta = (ClampMin = "0.5", ClampMax = "60.0"))
 	float ReconnectDelaySeconds = 2.0f;
@@ -343,91 +290,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horizon|WebSocket|Logging")
 	bool bVerboseLogging = false;
 	
-	// Performance Configuration
-	
-	/**
-	 * Maximum number of messages to include in a single batch
-	 * 
-	 * Higher values:
-	 * - Reduce network overhead by combining multiple messages
-	 * - Better throughput for high-frequency messaging
-	 * - Slightly increased latency as messages wait for batch completion
-	 * 
-	 * Lower values:
-	 * - Reduced latency as messages are sent more frequently
-	 * - Higher network overhead due to more individual transmissions
-	 * - Better for real-time applications requiring immediate responses
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horizon|WebSocket|Performance", meta = (ClampMin = "100", ClampMax = "100000"))
-	int32 BatchSize = 500;
-	
-	/**
-	 * Number of worker threads in the thread pool
-	 * 
-	 * 0 = Auto-configure based on CPU cores (recommended)
-	 * 1+ = Manual thread count
-	 * 
-	 * More threads can improve performance when:
-	 * - Sending high volumes of messages
-	 * - Using complex message serialization
-	 * - Running on multi-core systems
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horizon|WebSocket|Performance", meta = (ClampMin = "0", ClampMax = "10"))
-	int32 ThreadPoolSize = 0;
-	
-	/**
-	 * Maximum number of messages that can be queued for sending
-	 * 
-	 * Acts as a backpressure mechanism to prevent memory exhaustion
-	 * when messages are generated faster than they can be transmitted.
-	 * When the queue is full, new messages will be dropped.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horizon|WebSocket|Performance")
-	int32 MaxPendingMessages = 50000;
-	
-	/**
-	 * Enables message object pooling for memory efficiency
-	 * 
-	 * When enabled:
-	 * - Message objects are reused to reduce garbage collection
-	 * - Better performance for high-frequency messaging
-	 * - Slightly more memory usage for the object pool
-	 * 
-	 * When disabled:
-	 * - New message objects are created for each message
-	 * - More garbage collection but lower baseline memory usage
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horizon|WebSocket|Performance")
-	bool bEnableMessagePooling = true;
-	
-	/**
-	 * Maximum time to wait before flushing a batch (in seconds)
-	 * 
-	 * This setting controls the trade-off between latency and throughput:
-	 * - Higher values: Better batching efficiency, higher latency
-	 * - Lower values: Lower latency, less efficient batching
-	 * - 0.0: Disable batching entirely (send immediately)
-	 * 
-	 * Default: 0.01 seconds (10ms) provides good balance
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horizon|WebSocket|Performance", meta = (ClampMin = "0.0", ClampMax = "1.0"))
-	float BatchTimeoutSeconds = 0.01f;
-	
-	/**
-	 * Disable batching entirely - send all messages immediately
-	 * 
-	 * When true:
-	 * - All messages are sent with high priority
-	 * - Minimum latency but maximum network overhead
-	 * - Best for real-time applications where every millisecond matters
-	 * 
-	 * When false:
-	 * - Messages are batched according to BatchSize and BatchTimeoutSeconds
-	 * - Better throughput and network efficiency
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horizon|WebSocket|Performance")
-	bool bDisableBatching = false;
-	
 	// Internal Interface Methods
 	
 	/**
@@ -445,39 +307,11 @@ public:
 	bool ReceiveSocketData(TArray<uint8>& OutData);
 	
 	/**
-	 * Internal method for queuing incoming data for processing
-	 * @param Data The raw incoming data to queue
-	 */
-	void EnqueueIncomingData(const TArray<uint8>& Data);
-	
-	/**
-	 * Internal method for dequeuing outgoing messages
-	 * @param OutMessage The message to send
-	 * @return true if a message was dequeued
-	 */
-	bool DequeueOutgoingMessage(FString& OutMessage);
-	
-	/**
-	 * Internal method for dequeuing outgoing binary messages
-	 * @param OutData The binary data to send
-	 * @return true if data was dequeued
-	 */
-	bool DequeueOutgoingBinaryMessage(TArray<uint8>& OutData);
-	
-	/**
 	 * Internal method for logging socket messages
 	 * @param Message The message to log
 	 * @param bIsError Whether this is an error message
 	 */
 	void LogSocketMessage(const FString& Message, bool bIsError = false) const;
-	
-	/**
-	 * Gets detailed performance statistics for this client
-	 * @param bIncludeDetailedStats Whether to include detailed metrics
-	 * @return String containing performance metrics
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Horizon|WebSocket|Performance")
-	FString GetPerformanceStats(bool bIncludeDetailedStats = false) const;
 	
 	// Event delegates - Blueprint bindable
 	UPROPERTY(BlueprintAssignable, Category = "Horizon|WebSocket|Events")
@@ -521,14 +355,12 @@ protected:
 	EHorizonWebSocketState ConnectionState;
 	FThreadSafeBool bConnectionEstablished;
 
-	// Reconnection handling
+	// Reconnection handling (simplified)
 	int32 CurrentReconnectAttempts;
 	FThreadSafeBool bShouldShutdown;
 	FThreadSafeBool bCleaningUp;
-	bool bIsReconnecting;
 	double LastHeartbeatTime;
 	double LastMessageReceivedTime;
-	double ReconnectScheduledTime;
 
 	// Socket and networking
 	mutable FCriticalSection SocketMutex;
@@ -545,31 +377,8 @@ protected:
 	Horizon::Protocol::FWebSocketProtocol::FExtensionFlags ExtensionFlags;
 	TArray<FString> AcceptedExtensions;
 
-	// Thread pool for async operations
-	TSharedPtr<Horizon::Threading::FThreadPool> ThreadPool;
-	
-	// High-performance message queues
-	std::atomic<int32> PendingMessagesCount{0};
-	TQueue<TSharedPtr<Horizon::WebSocket::FHorizonMessage>> OutgoingHighPriorityMessages;
-	TQueue<TSharedPtr<Horizon::WebSocket::FHorizonMessage>> OutgoingMessages;
-	TQueue<TSharedPtr<Horizon::WebSocket::FHorizonMessage>> IncomingMessages;
-	TQueue<TArray<uint8>> IncomingData;
-	TQueue<TArray<uint8>> OutgoingBinaryMessages;
-	
-	// Batching support
-	TArray<TSharedPtr<Horizon::WebSocket::FHorizonMessage>> BatchedMessages;
-	double LastBatchSendTime;
-	FCriticalSection BatchMutex;
-	
 	// Frame buffer for WebSocket frame processing
 	TArray<uint8> FrameBuffer;
-
-	// Statistics
-	std::atomic<uint64> SentMessagesCount{0};
-	std::atomic<uint64> ReceivedMessagesCount{0};
-	std::atomic<uint64> SentBytesCount{0};
-	std::atomic<uint64> ReceivedBytesCount{0};
-	std::atomic<uint64> ErrorsCount{0};
 	
 	// Internal methods
 	void CleanupWebSocket();
@@ -583,15 +392,9 @@ protected:
 	bool SendHandshakeRequest();
 	bool ProcessHandshakeResponse(const FString& Response);
 	
-	// Batch processing
-	void ProcessOutgoingBatch(bool bForceFlush = false);
-	
-	// High-performance message handling
-	void ProcessReceivedMessage(TSharedPtr<Horizon::WebSocket::FHorizonMessage> Message);
+	// Simple message handling (SocketIOClient-style)
 	void ProcessReceivedFrame(bool bFinal, uint8 Opcode, const TArray<uint8>& Payload);
-	
-	// Worker task management
-	bool CreateWorkerTask(TFunction<void()> TaskFunction);
+	void ProcessReceivedMessage(TSharedPtr<Horizon::WebSocket::FHorizonMessage> Message);
 	
 	// Event handlers
 	void OnWebSocketConnected();
@@ -603,38 +406,25 @@ protected:
 };
 
 /**
- * Simplified WebSocket Message API (Single-Client Architecture)
+ * Simplified WebSocket Message API
  * 
- * This WebSocket client uses a single, clear way to send messages:
+ * This WebSocket client uses a simple, direct approach for sending messages:
  * - Use SendMessage() for all message types (text/JSON)
+ * - Messages are sent immediately (no complex batching)
  * - Plain text is automatically wrapped in JSON format for server compatibility
- * - For structured messages, use FHorizonMessageFactory helper functions:
- *   - FHorizonMessageFactory::CreateChatMessage() for chat messages
- *   - FHorizonMessageFactory::CreateGameActionMessage() for game actions
- *   - FHorizonMessageFactory::CreateSystemMessage() for system messages
- *   - FHorizonMessageFactory::CreatePlayerStatusMessage() for player status updates
- *   - FHorizonMessageFactory::CreateJSONMessage() for custom messages
- * 
- * All FHorizonMessageFactory helper functions automatically add UUID and timestamp fields.
+ * - For structured messages, use UHorizonUtility helper functions
  * 
  * Example usage:
- *   // Simple text message (auto-wrapped with UUID and timestamp)
+ *   // Simple text message
  *   Client->SendMessage("Hello World");
  *   
- *   // Chat message using FHorizonMessageFactory
- *   auto ChatMsg = FHorizonMessageFactory::CreateChatMessage("player123", "Hello!", "general");
+ *   // Chat message using UHorizonUtility
+ *   FString ChatMsg = UHorizonUtility::MakeChatMessage("player123", "Hello!", "general");
  *   Client->SendMessage(ChatMsg);
- *   
- *   // Game action message
- *   TMap<FString, FString> ActionData;
- *   ActionData.Add("x", "100.5");
- *   ActionData.Add("y", "200.0");
- *   auto ActionMsg = FHorizonMessageFactory::CreateGameActionMessage("player123", "move", ActionData);
- *   Client->SendMessage(ActionMsg);
  *   
  *   // Custom structured message
  *   TMap<FString, FString> CustomData;
  *   CustomData.Add("custom_field", "value");
- *   auto CustomMsg = FHorizonMessageFactory::CreateJSONMessage("custom", "event", CustomData);
+ *   FString CustomMsg = UHorizonUtility::MakeJSONMessage("custom", "event", CustomData);
  *   Client->SendMessage(CustomMsg);
  */

@@ -113,18 +113,6 @@ public:
 	 * @{
 	 */
 
-	/** Number of messages to batch together for efficient sending */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horizon|WebSocket|Performance", meta = (ClampMin = "100", ClampMax = "10000", ToolTip = "Number of messages to batch together for efficient sending"))
-	int32 BatchSize = 500;
-
-	/** Number of threads to use for background processing (0 = auto-detect) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horizon|WebSocket|Performance", meta = (ClampMin = "0", ClampMax = "32", ToolTip = "Number of threads to use for background processing (0 = auto-detect based on CPU cores)"))
-	int32 ThreadPoolSize = 0;
-
-	/** Maximum number of pending messages before blocking */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horizon|WebSocket|Performance", meta = (ClampMin = "1000", ClampMax = "1000000", ToolTip = "Maximum number of pending messages before blocking new sends"))
-	int32 MaxPendingMessages = 50000;
-
 	/** @} */
 
 	/**
@@ -293,25 +281,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Horizon|WebSocket|Configuration")
 	bool GetVerboseLogging() const;
 
-	// Performance configuration
-	UFUNCTION(BlueprintCallable, Category = "Horizon|WebSocket|Performance")
-	void SetBatchSize(int32 Size);
-
-	UFUNCTION(BlueprintCallable, Category = "Horizon|WebSocket|Performance")
-	void SetThreadPoolSize(int32 Size);
-
-	UFUNCTION(BlueprintCallable, Category = "Horizon|WebSocket|Performance")
-	void SetMaxPendingMessages(int32 Count);
-
-	UFUNCTION(BlueprintPure, Category = "Horizon|WebSocket|Performance")
-	int32 GetBatchSize() const;
-
-	UFUNCTION(BlueprintPure, Category = "Horizon|WebSocket|Performance")
-	int32 GetThreadPoolSize() const;
-
-	UFUNCTION(BlueprintPure, Category = "Horizon|WebSocket|Performance")
-	int32 GetMaxPendingMessages() const;
-
+	// Performance configuration (simplified)
 	UFUNCTION(BlueprintCallable, Category = "Horizon|WebSocket|Performance")
 	FString GetPerformanceStats(bool bIncludeDetailedStats = false) const;
 
@@ -322,8 +292,6 @@ private:
 	void BindWebSocketEvents();
 	void UnbindWebSocketEvents();
 	void PerformAutoConnect();
-	void ApplyPerformanceSettings();
-
 	// Event handlers - forward WebSocket client events to component delegates
 	UFUNCTION()
 	void HandleOnConnected(bool bSuccess);

@@ -1,7 +1,6 @@
 #include "WebSocket/HorizonWebSocketComponent.h"
 #include "WebSocket/HorizonWebSocketClient.h"
 #include "Core/Horizon.h"
-#include "Threading/HorizonThreadPool.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 
@@ -196,55 +195,15 @@ bool UHorizonWebSocketComponent::GetVerboseLogging() const
 	return WebSocket ? WebSocket->bVerboseLogging : false;
 }
 
-void UHorizonWebSocketComponent::SetBatchSize(int32 Size)
-{
-	BatchSize = FMath::Clamp(Size, 100, 10000);
-	if (WebSocket)
-	{
-		WebSocket->BatchSize = BatchSize;
-	}
-}
-
-void UHorizonWebSocketComponent::SetThreadPoolSize(int32 Size)
-{
-	ThreadPoolSize = FMath::Clamp(Size, 0, 32);
-	if (WebSocket)
-	{
-		WebSocket->ThreadPoolSize = ThreadPoolSize;
-	}
-}
-
-void UHorizonWebSocketComponent::SetMaxPendingMessages(int32 Count)
-{
-	MaxPendingMessages = FMath::Clamp(Count, 1000, 1000000);
-	if (WebSocket)
-	{
-		WebSocket->MaxPendingMessages = MaxPendingMessages;
-	}
-}
-
-int32 UHorizonWebSocketComponent::GetBatchSize() const
-{
-	return WebSocket ? WebSocket->BatchSize : BatchSize;
-}
-
-int32 UHorizonWebSocketComponent::GetThreadPoolSize() const
-{
-	return WebSocket ? WebSocket->ThreadPoolSize : ThreadPoolSize;
-}
-
-int32 UHorizonWebSocketComponent::GetMaxPendingMessages() const
-{
-	return WebSocket ? WebSocket->MaxPendingMessages : MaxPendingMessages;
-}
-
 FString UHorizonWebSocketComponent::GetPerformanceStats(bool bIncludeDetailedStats) const
 {
 	if (WebSocket)
 	{
-		return WebSocket->GetPerformanceStats(bIncludeDetailedStats);
+		return FString::Printf(TEXT("Connected: %s, State: %s"), 
+			WebSocket->IsConnected() ? TEXT("true") : TEXT("false"),
+			*UEnum::GetValueAsString(WebSocket->GetConnectionState()));
 	}
-	return TEXT("Performance monitoring not enabled");
+	return TEXT("No WebSocket client available");
 }
 
 
@@ -259,26 +218,12 @@ void UHorizonWebSocketComponent::InitializeWebSocket()
 		// Set the component reference so the client can call our events directly
 		WebSocket->SetOwningComponent(this);
 		
-		// Apply high-performance settings
-		ApplyPerformanceSettings();
+		// Initialize the client with default settings
+		WebSocket->Initialize();
 		
 		BindWebSocketEvents();
 		
 		UE_LOG(LogHorizon, Log, TEXT("Horizon WebSocket client initialized for component"));
-	}
-}
-
-void UHorizonWebSocketComponent::ApplyPerformanceSettings()
-{
-	if (WebSocket)
-	{
-		// Apply performance configuration (always optimized)
-		WebSocket->BatchSize = BatchSize;
-		WebSocket->ThreadPoolSize = ThreadPoolSize;
-		WebSocket->MaxPendingMessages = MaxPendingMessages;
-		
-		// Initialize the client with these settings
-		WebSocket->Initialize();
 	}
 }
 

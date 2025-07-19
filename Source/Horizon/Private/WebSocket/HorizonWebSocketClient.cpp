@@ -1,9 +1,7 @@
 #include "WebSocket/HorizonWebSocketClient.h"
 #include "WebSocket/HorizonWebSocketComponent.h"
 #include "Protocol/HorizonWebSocketProtocol.h"
-#include "Threading/HorizonThreadPool.h"
 #include "WebSocket/HorizonMessage.h"
-#include "WebSocket/HorizonPerformanceMonitor.h"
 #include "Core/Horizon.h"
 #include "Utils/HorizonUtility.h"
 #include "Engine/World.h"
@@ -27,30 +25,16 @@ UHorizonWebSocketClient::UHorizonWebSocketClient()
       , CurrentReconnectAttempts(0)
       , bShouldShutdown(false)
       , bCleaningUp(false)
-      , bIsReconnecting(false)
       , LastHeartbeatTime(0.0)
       , LastMessageReceivedTime(0.0)
-      , ReconnectScheduledTime(0.0)
       , Socket(nullptr)
       , ServerPort(0)
       , bIsSecureConnection(false)
-      , LastBatchSendTime(0.0)
       , OwningComponent(nullptr)
 {
     // Initialize with current time
     LastHeartbeatTime = FPlatformTime::Seconds();
     LastMessageReceivedTime = LastHeartbeatTime;
-    LastBatchSendTime = LastHeartbeatTime;
-    
-    // Enable message pooling by default
-    bEnableMessagePooling = true;
-    
-    // Set optimized defaults for message limits
-    MaxPendingMessages = 50000;           // Optimized default
-    BatchSize = 500;                      // Optimized default
-    
-    // Configure thread pool for maximum performance
-    ThreadPoolSize = FMath::Max(2, FPlatformMisc::NumberOfCores() - 1);
 }
 
 UHorizonWebSocketClient::~UHorizonWebSocketClient()
@@ -71,36 +55,10 @@ void UHorizonWebSocketClient::Initialize()
         return;
     }
 
-    // Create thread pool for async operations if not already created
-    if (!ThreadPool.IsValid())
-    {
-        ThreadPool = Horizon::Threading::FThreadPool::Get();
-    }
-    
     // Initialize extensions flags
     ExtensionFlags = Horizon::Protocol::FWebSocketProtocol::FExtensionFlags();
     
-    // Initialize batched messages array
-    if (BatchedMessages.Max() < BatchSize)
-    {
-        BatchedMessages.Reserve(BatchSize);
-    }
-    
-    // Initialize performance monitoring
-    try
-    {
-        if (auto Monitor = Horizon::WebSocket::FHorizonPerformanceMonitor::Get())
-        {
-            Monitor->Initialize(ThreadPoolSize);
-        }
-    }
-    catch (...)
-    {
-        UE_LOG(LogHorizon, Warning, TEXT("Failed to initialize performance monitoring"));
-    }
-    
-    UE_LOG(LogHorizon, Log, TEXT("HorizonWebSocketClient initialized - ThreadPool: %d threads, Batch size: %d"),
-        ThreadPoolSize, BatchSize);
+    UE_LOG(LogHorizon, Log, TEXT("HorizonWebSocketClient initialized (simplified)"));
 }
 
 void UHorizonWebSocketClient::BeginDestroy()
@@ -112,32 +70,6 @@ void UHorizonWebSocketClient::BeginDestroy()
     if (!bCleaningUp)
     {
         CleanupWebSocket();
-    }
-    
-    // Wait a moment for any running tasks to see the shutdown flag
-    if (ThreadPool.IsValid())
-    {
-        // Give tasks a chance to see the shutdown flag and exit
-        const float MaxWaitTime = 1.0f; // Wait up to 1 second
-        const float CheckInterval = 0.01f; // Check every 10ms
-        float WaitTime = 0.0f;
-        
-        while (WaitTime < MaxWaitTime)
-        {
-            FPlatformProcess::Sleep(CheckInterval);
-            WaitTime += CheckInterval;
-            
-            // Check if there are still tasks running
-            if (ThreadPool.IsValid() && !ThreadPool->HasPendingTasks())
-            {
-                break;
-            }
-        }
-        
-        if (WaitTime >= MaxWaitTime)
-        {
-            UE_LOG(LogHorizon, Warning, TEXT("WebSocket client timed out waiting for tasks to complete during shutdown"));
-        }
     }
     
     Super::BeginDestroy();
@@ -154,112 +86,7 @@ UWorld* UHorizonWebSocketClient::GetWorld() const
 
 void UHorizonWebSocketClient::Tick(float DeltaTime)
 {
-    // Handle scheduled reconnection
-    if (bIsReconnecting && ReconnectScheduledTime > 0.0)
-    {
-        if (FPlatformTime::Seconds() >= ReconnectScheduledTime)
-        {
-            ReconnectScheduledTime = 0.0;
-            bIsReconnecting = false;
-
-            LogMessage(FString::Printf(TEXT("Attempting reconnection %d/%d"), CurrentReconnectAttempts + 1, MaxReconnectAttempts));
-            Connect(ServerURL, ServerProtocol);
-        }
-    }
-
-    // Process high-priority outgoing messages first
-    TSharedPtr<Horizon::WebSocket::FHorizonMessage> HighPriorityMessage;
-    while (OutgoingHighPriorityMessages.Dequeue(HighPriorityMessage))
-    {
-        if (HighPriorityMessage.IsValid())
-        {
-            // Convert to WebSocket frame and send immediately
-            TArray<uint8> FrameData = HighPriorityMessage->ToWebSocketFrame();
-            SendSocketData(FrameData);
-            
-            // Decrement pending message counter
-            PendingMessagesCount--;
-            
-            // Broadcast message sent event (check message type first)
-            if (HighPriorityMessage->GetType() == Horizon::WebSocket::FHorizonMessage::EType::Text)
-            {
-                OnWebSocketMessageSent(HighPriorityMessage->GetTextPayload());
-            }
-        }
-    }
-
-    // Process incoming data
-    TArray<uint8> NewData;
-    while (IncomingData.Dequeue(NewData))
-    {
-        FrameBuffer.Append(NewData);
-        
-        // Process complete frames
-        bool bIsFinal;
-        uint8 Opcode;
-        TArray<uint8> Payload;
-        while (Horizon::Protocol::FWebSocketProtocol::ProcessWebSocketFrame(FrameBuffer, bIsFinal, Opcode, Payload))
-        {
-            // Handle different opcodes
-            switch (Opcode)
-            {
-            case 0x1: // Text frame
-                {
-                    FString Message = FString(UTF8_TO_TCHAR(reinterpret_cast<const char*>(Payload.GetData())));
-                    
-                    // Update last message received time
-                    LastMessageReceivedTime = FPlatformTime::Seconds();
-
-                    // Call the event handler which will broadcast delegates
-                    OnWebSocketMessage(Message);
-                    break;
-                }
-            case 0x2: // Binary frame
-                {
-                    // Update last message received time
-                    LastMessageReceivedTime = FPlatformTime::Seconds();
-
-                    // Call the event handler which will broadcast delegates
-                    OnWebSocketRawMessage(Payload);
-                    break;
-                }
-            case 0x8: // Close frame
-                {
-                    uint16 CloseCode = 1000;
-                    FString CloseReason;
-
-                    if (Payload.Num() >= 2)
-                    {
-                        CloseCode = (Payload[0] << 8) | Payload[1];
-                        if (Payload.Num() > 2)
-                        {
-                            CloseReason = FString(UTF8_TO_TCHAR(reinterpret_cast<const char*>(Payload.GetData() + 2)));
-                        }
-                    }
-
-                    // Call the event handler which will broadcast delegates
-                    OnWebSocketClosed(CloseCode, CloseReason, true);
-                    CleanupWebSocket();
-                    break;
-                }
-            case 0x9: // Ping frame
-                {
-                    // Send pong response with correct opcode (0xA)
-                    TArray<uint8> PongFrame = Horizon::Protocol::FWebSocketProtocol::CreatePongFrame(Payload, true);
-                    SendSocketData(PongFrame);
-                    break;
-                }
-            case 0xA: // Pong frame
-                {
-                    // Handle pong (heartbeat response)
-                    LastMessageReceivedTime = FPlatformTime::Seconds();
-                    break;
-                }
-            }
-        }
-    }
-
-    // Check for connection timeout if heartbeat is enabled
+    // Simple heartbeat check (removed complex reconnection scheduling)
     if (bEnableHeartbeat && IsConnected())
     {
         double CurrentTime = FPlatformTime::Seconds();
@@ -269,10 +96,13 @@ void UHorizonWebSocketClient::Tick(float DeltaTime)
         if (TimeSinceLastMessage > TimeoutThreshold)
         {
             LogMessage(FString::Printf(TEXT("Connection timeout detected (%.1fs since last message)"), TimeSinceLastMessage), true);
-
+            // Simple reconnection - just try again immediately if enabled
             if (bAutoReconnect && CurrentReconnectAttempts < MaxReconnectAttempts)
             {
-                ForceReconnect();
+                CurrentReconnectAttempts++;
+                LogMessage(FString::Printf(TEXT("Auto-reconnecting (attempt %d/%d)"), CurrentReconnectAttempts, MaxReconnectAttempts));
+                CleanupWebSocket();
+                Connect(ServerURL, ServerProtocol);
             }
             else
             {
@@ -284,16 +114,8 @@ void UHorizonWebSocketClient::Tick(float DeltaTime)
         else if (CurrentTime - LastHeartbeatTime >= HeartbeatIntervalSeconds)
         {
             SendHeartbeat();
+            LastHeartbeatTime = CurrentTime;
         }
-    }
-
-    // Force flush batched messages (batching is always enabled)
-    ProcessOutgoingBatch(false);
-    
-    // Update performance monitoring (always enabled)
-    if (auto Monitor = Horizon::WebSocket::FHorizonPerformanceMonitor::Get())
-    {
-        Monitor->Update(DeltaTime);
     }
 }
 
@@ -422,8 +244,8 @@ bool UHorizonWebSocketClient::Connect(const FString& URL, const FString& Protoco
     // Generate WebSocket key
     WebSocketKey = Horizon::Protocol::FWebSocketProtocol::GenerateWebSocketKey();
     
-    // Submit handshake task with connection wait
-    CreateWorkerTask([this]() {
+    // Submit handshake task with connection wait (simplified approach)
+    AsyncTask(ENamedThreads::AnyThread, [this]() {
         // Wait for socket connection to complete (for non-blocking sockets)
         if (WaitForSocketConnection())
         {
@@ -457,15 +279,6 @@ bool UHorizonWebSocketClient::SendMessage(const FString& Message, bool bHighPrio
     if (!IsConnected())
     {
         LogMessage(TEXT("Cannot send message: not connected"), true);
-        Horizon::WebSocket::FHorizonPerformanceMonitor::Get()->TrackError();
-        return false;
-    }
-    
-    // Check if we're over the pending message limit
-    if (PendingMessagesCount >= MaxPendingMessages)
-    {
-        LogMessage(FString::Printf(TEXT("Message queue full (%d messages pending)"), static_cast<int32>(PendingMessagesCount.load())), true);
-        Horizon::WebSocket::FHorizonPerformanceMonitor::Get()->TrackError();
         return false;
     }
     
@@ -481,107 +294,40 @@ bool UHorizonWebSocketClient::SendMessage(const FString& Message, bool bHighPrio
         // Wrap in default game message format for server compatibility
         TMap<FString, FString> MessageData;
         MessageData.Add(TEXT("content"), Message);
-        MessageToSend = UHorizonUtility::CreateJSONMessage(TEXT("game"), TEXT("message"), MessageData);
+        MessageToSend = UHorizonUtility::MakeJSONMessage(TEXT("game"), TEXT("message"), MessageData);
     }
     
-    // Create message object from pool
-    TSharedPtr<Horizon::WebSocket::FHorizonMessage> MessageObj = Horizon::WebSocket::FHorizonMessage::CreateTextMessage(MessageToSend);
-    
-    // Track statistics
-    Horizon::WebSocket::FHorizonPerformanceMonitor::Get()->TrackMessageSent(MessageObj->GetSize());
-    SentMessagesCount++;
-    SentBytesCount += MessageObj->GetSize();
-    
-    // Increment pending message counter
-    PendingMessagesCount++;
-    
-    // If high priority, batching disabled, or immediate send requested, skip batching
-    if (bHighPriority || bDisableBatching)
+    // Send immediately using Async task (simplified approach)
+    AsyncTask(ENamedThreads::AnyThread, [this, MessageToSend]()
     {
-        OutgoingHighPriorityMessages.Enqueue(MessageObj);
-        return true;
-    }
-    
-    // Add to batch by default
-    FScopeLock BatchLock(&BatchMutex);
-    BatchedMessages.Add(MessageObj);
-    
-    // Process batch if it's full or it's been a while
-    const bool bBatchFull = BatchedMessages.Num() >= BatchSize;
-    const double CurrentTime = FPlatformTime::Seconds();
-    const bool bTimeToFlush = (CurrentTime - LastBatchSendTime) > BatchTimeoutSeconds;
-    
-    if (bBatchFull || bTimeToFlush)
-    {
-        ProcessOutgoingBatch();
-    }
+        // Create WebSocket text frame and send
+        TArray<uint8> FrameData = Horizon::Protocol::FWebSocketProtocol::CreateWebSocketFrame(MessageToSend, true);
+        SendSocketData(FrameData);
+    });
     
     return true;
 }
 
-bool UHorizonWebSocketClient::SendMessageNow(const FString& Message)
-{
-    // Send with high priority to bypass batching
-    return SendMessage(Message, true);
-}
 
 bool UHorizonWebSocketClient::SendBinaryMessage(const TArray<uint8>& Data, bool bHighPriority)
 {
     if (!IsConnected())
     {
         LogMessage(TEXT("Cannot send binary message: not connected"), true);
-        Horizon::WebSocket::FHorizonPerformanceMonitor::Get()->TrackError();
         return false;
     }
     
-    // Check if we're over the pending message limit
-    if (PendingMessagesCount >= MaxPendingMessages)
+    // Send immediately using Async task (simplified approach)
+    AsyncTask(ENamedThreads::AnyThread, [this, Data]()
     {
-        LogMessage(FString::Printf(TEXT("Message queue full (%d messages pending)"), static_cast<int32>(PendingMessagesCount.load())), true);
-        Horizon::WebSocket::FHorizonPerformanceMonitor::Get()->TrackError();
-        return false;
-    }
-    
-    // Create binary message object from pool
-    TSharedPtr<Horizon::WebSocket::FHorizonMessage> MessageObj = Horizon::WebSocket::FHorizonMessage::CreateBinaryMessage(Data);
-    
-    // Track statistics
-    Horizon::WebSocket::FHorizonPerformanceMonitor::Get()->TrackMessageSent(MessageObj->GetSize());
-    SentMessagesCount++;
-    SentBytesCount += MessageObj->GetSize();
-    
-    // Increment pending message counter
-    PendingMessagesCount++;
-    
-    // If high priority, batching disabled, or immediate send requested, skip batching
-    if (bHighPriority || bDisableBatching)
-    {
-        OutgoingHighPriorityMessages.Enqueue(MessageObj);
-        return true;
-    }
-    
-    // Add to batch by default
-    FScopeLock BatchLock(&BatchMutex);
-    BatchedMessages.Add(MessageObj);
-    
-    // Process batch if it's full or it's been a while
-    const bool bBatchFull = BatchedMessages.Num() >= BatchSize;
-    const double CurrentTime = FPlatformTime::Seconds();
-    const bool bTimeToFlush = (CurrentTime - LastBatchSendTime) > BatchTimeoutSeconds;
-    
-    if (bBatchFull || bTimeToFlush)
-    {
-        ProcessOutgoingBatch();
-    }
+        // Create WebSocket binary frame and send
+        TArray<uint8> FrameData = Horizon::Protocol::FWebSocketProtocol::CreateBinaryFrame(Data, true);
+        SendSocketData(FrameData);
+    });
     
     return true;
 }
 
-bool UHorizonWebSocketClient::SendBinaryMessageNow(const TArray<uint8>& Data)
-{
-    // Send with high priority to bypass batching
-    return SendBinaryMessage(Data, true);
-}
 
 bool UHorizonWebSocketClient::IsConnected() const
 {
@@ -602,12 +348,8 @@ void UHorizonWebSocketClient::ForceReconnect()
         return;
     }
 
-    LogMessage(TEXT("Force reconnecting..."));
-
-    // Clean up current connection
-    CleanupWebSocket();
-
-    // Schedule reconnection
+    LogMessage(TEXT("Force reconnecting (simplified)..."));
+    // Simple immediate reconnection
     HandleReconnection();
 }
 
@@ -656,21 +398,6 @@ void UHorizonWebSocketClient::CleanupWebSocket()
     bCleaningUp = true;
     bConnectionEstablished = false;
 
-    // Release thread pool reference (but don't shutdown the singleton)
-    if (ThreadPool.IsValid())
-    {
-        try
-        {
-            // Just release our reference, don't shutdown the singleton
-            // The singleton will manage its own lifecycle
-            ThreadPool.Reset();
-        }
-        catch (...)
-        {
-            UE_LOG(LogHorizon, Warning, TEXT("Exception during thread pool cleanup"));
-        }
-    }
-
     // Clean up socket
     {
         FScopeLock Lock(&SocketMutex);
@@ -695,44 +422,20 @@ void UHorizonWebSocketClient::CleanupWebSocket()
     // Clear message queues safely
     try
     {
-        TSharedPtr<Horizon::WebSocket::FHorizonMessage> DummyMessage;
-        while (OutgoingMessages.Dequeue(DummyMessage)) {}
-        while (OutgoingHighPriorityMessages.Dequeue(DummyMessage)) {}
-        while (IncomingMessages.Dequeue(DummyMessage)) {}
-        
-        // Clear batched messages
-        {
-            FScopeLock BatchLock(&BatchMutex);
-            BatchedMessages.Empty();
-        }
+        // Simple cleanup (queues removed for simplification)
     }
     catch (...)
     {
-        UE_LOG(LogHorizon, Warning, TEXT("Exception during message queue cleanup"));
+        UE_LOG(LogHorizon, Warning, TEXT("Exception during cleanup"));
     }
     
-    // Reset counters and state
-    PendingMessagesCount = 0;
+    // Reset state
     FrameBuffer.Empty();
     
-    // Log final stats safely (performance monitoring always enabled)
-    try
-    {
-        if (auto Monitor = Horizon::WebSocket::FHorizonPerformanceMonitor::Get())
-        {
-            UE_LOG(LogHorizon, Log, TEXT("WebSocket cleanup - Final stats: %s"), 
-                *Monitor->GetStatsAsString(true));
-        }
-    }
-    catch (...)
-    {
-        UE_LOG(LogHorizon, Warning, TEXT("Exception during performance stats logging"));
-    }
+    UE_LOG(LogHorizon, Log, TEXT("WebSocket cleanup complete"));
     
     SetConnectionState(EHorizonWebSocketState::Disconnected);
     CurrentReconnectAttempts = 0;
-    bIsReconnecting = false;
-    ReconnectScheduledTime = 0.0;
     
     bCleaningUp = false;
 }
@@ -752,6 +455,7 @@ void UHorizonWebSocketClient::SetConnectionState(EHorizonWebSocketState NewState
 
 void UHorizonWebSocketClient::HandleReconnection()
 {
+    // Simplified reconnection - just attempt immediate reconnect (SocketIOClient style)
     if (bShouldShutdown || !bAutoReconnect)
     {
         return;
@@ -765,17 +469,11 @@ void UHorizonWebSocketClient::HandleReconnection()
     }
 
     CurrentReconnectAttempts++;
-    bIsReconnecting = true;
-    SetConnectionState(EHorizonWebSocketState::Reconnecting);
-
-    // Schedule reconnection with exponential backoff
-    float DelayMultiplier = FMath::Pow(2.0f, CurrentReconnectAttempts - 1);
-    float ActualDelay = FMath::Min(ReconnectDelaySeconds * DelayMultiplier, 60.0f); // Cap at 60 seconds
-
-    ReconnectScheduledTime = FPlatformTime::Seconds() + ActualDelay;
-
-    LogMessage(FString::Printf(TEXT("Reconnection scheduled in %.1f seconds (Attempt %d/%d)"),
-        ActualDelay, CurrentReconnectAttempts, MaxReconnectAttempts));
+    LogMessage(FString::Printf(TEXT("Attempting simple reconnection (attempt %d/%d)"), CurrentReconnectAttempts, MaxReconnectAttempts));
+    
+    // Simple immediate reconnection - no complex scheduling or backoff
+    CleanupWebSocket();
+    Connect(ServerURL, ServerProtocol);
 }
 
 void UHorizonWebSocketClient::LogMessage(const FString& Message, bool bIsError) const
@@ -868,7 +566,6 @@ void UHorizonWebSocketClient::OnWebSocketConnected()
     SetConnectionState(EHorizonWebSocketState::Connected);
     bConnectionEstablished = true;
     CurrentReconnectAttempts = 0;
-    bIsReconnecting = false;
     LastMessageReceivedTime = FPlatformTime::Seconds();
 
     // Broadcast delegate on game thread
@@ -994,7 +691,6 @@ bool UHorizonWebSocketClient::SendSocketData(const TArray<uint8>& Data)
     if (!bSuccess || BytesSent != Data.Num())
     {
         LogMessage(FString::Printf(TEXT("Failed to send data: %d of %d bytes sent"), BytesSent, Data.Num()), true);
-        Horizon::WebSocket::FHorizonPerformanceMonitor::Get()->TrackError();
         return false;
     }
     
@@ -1033,7 +729,6 @@ bool UHorizonWebSocketClient::ReceiveSocketData(TArray<uint8>& OutData)
     {
         OutData.Empty();
         LogMessage(TEXT("Failed to receive data from socket"), true);
-        Horizon::WebSocket::FHorizonPerformanceMonitor::Get()->TrackError();
             return false;
         }
 
@@ -1042,9 +737,6 @@ bool UHorizonWebSocketClient::ReceiveSocketData(TArray<uint8>& OutData)
     {
         OutData.SetNum(BytesRead);
     }
-    
-    // Track received data
-    ReceivedBytesCount += BytesRead;
     
     return true;
 }
@@ -1055,10 +747,6 @@ void UHorizonWebSocketClient::ProcessReceivedMessage(TSharedPtr<Horizon::WebSock
     {
         return;
     }
-
-    // Track statistics
-    ReceivedMessagesCount++;
-    ReceivedBytesCount += Message->GetSize();
 
     // Handle different message types
     switch (Message->GetType())
@@ -1136,91 +824,9 @@ void UHorizonWebSocketClient::ProcessReceivedMessage(TSharedPtr<Horizon::WebSock
     LastMessageReceivedTime = FPlatformTime::Seconds();
 }
 
-void UHorizonWebSocketClient::EnqueueIncomingData(const TArray<uint8>& Data)
-{
-    IncomingData.Enqueue(Data);
-}
-
-bool UHorizonWebSocketClient::DequeueOutgoingMessage(FString& OutMessage)
-{
-    TSharedPtr<Horizon::WebSocket::FHorizonMessage> Message;
-    
-    if (OutgoingMessages.Dequeue(Message) && Message.IsValid())
-    {
-        OutMessage = Message->GetText();
-        return true;
-    }
-    
-    return false;
-}
-
-bool UHorizonWebSocketClient::DequeueOutgoingBinaryMessage(TArray<uint8>& OutData)
-{
-    TArray<uint8> Data;
-    
-    if (OutgoingBinaryMessages.Dequeue(Data))
-    {
-        OutData = Data;
-        return true;
-    }
-    
-    return false;
-}
-
 void UHorizonWebSocketClient::LogSocketMessage(const FString& Message, bool bIsError) const
 {
     LogMessage(Message, bIsError);
-}
-
-FString UHorizonWebSocketClient::GetPerformanceStats(bool bIncludeDetailedStats) const
-{
-    if (ThreadPool.IsValid())
-    {
-        Horizon::WebSocket::FHorizonPerformanceMonitor::Get()->TrackPendingTasks(ThreadPool->GetPendingTaskCount());
-    }
-    
-    return Horizon::WebSocket::FHorizonPerformanceMonitor::Get()->GetStatsAsString(bIncludeDetailedStats);
-}
-
-void UHorizonWebSocketClient::ProcessOutgoingBatch(bool bForceFlush)
-{
-    FScopeLock BatchLock(&BatchMutex);
-    
-    if (BatchedMessages.Num() == 0)
-    {
-        return; // Nothing to process
-    }
-    
-    // Only process if we have enough messages or we're forcing a flush
-    if (!bForceFlush && BatchedMessages.Num() < BatchSize)
-    {
-        return;
-    }
-    
-    // Update last batch send time
-    LastBatchSendTime = FPlatformTime::Seconds();
-    
-    // Make a copy of the batch to process
-    TArray<TSharedPtr<Horizon::WebSocket::FHorizonMessage>> BatchToProcess = MoveTemp(BatchedMessages);
-    BatchedMessages.Empty();
-    
-    // Submit to thread pool for processing
-    ThreadPool->EnqueueTask([this, BatchToProcess]() {
-        // Process each message in the batch
-        for (const TSharedPtr<Horizon::WebSocket::FHorizonMessage>& Message : BatchToProcess)
-        {
-            // Convert to WebSocket frame
-            TArray<uint8> FrameData = Message->ToWebSocketFrame();
-            
-            // Send data
-            SendSocketData(FrameData);
-            
-            // Decrement pending message counter
-            PendingMessagesCount--;
-        }
-        
-        return true;
-    });
 }
 
 bool UHorizonWebSocketClient::PerformHandshake()
@@ -1357,11 +963,9 @@ bool UHorizonWebSocketClient::ProcessHandshakeResponse(const FString& Response)
     
     // Reset reconnect attempts
     CurrentReconnectAttempts = 0;
-    bIsReconnecting = false;
     LastMessageReceivedTime = FPlatformTime::Seconds();
     
     // Track connection
-    Horizon::WebSocket::FHorizonPerformanceMonitor::Get()->TrackConnection();
     
     // Call connected callback on game thread
     AsyncTask(ENamedThreads::GameThread, [this]() {
@@ -1371,8 +975,8 @@ bool UHorizonWebSocketClient::ProcessHandshakeResponse(const FString& Response)
         }
     });
     
-    // Start receiving task
-    CreateWorkerTask([this]() {
+    // Start receiving task (simplified approach)
+    AsyncTask(ENamedThreads::AnyThread, [this]() {
         while (IsConnected() && !bShouldShutdown && IsValid(this))
         {
             TArray<uint8> ReceivedData;
@@ -1381,8 +985,23 @@ bool UHorizonWebSocketClient::ProcessHandshakeResponse(const FString& Response)
                 // Double-check we're still valid before processing
                 if (!bShouldShutdown && IsValid(this))
                 {
-                    // Queue the data for processing on the game thread
-                    EnqueueIncomingData(ReceivedData);
+                    // Process data directly (simplified SocketIOClient-style approach)
+                    FrameBuffer.Append(ReceivedData);
+                    
+                    // Process complete frames directly
+                    bool bIsFinal;
+                    uint8 Opcode;
+                    TArray<uint8> Payload;
+                    while (Horizon::Protocol::FWebSocketProtocol::ProcessWebSocketFrame(FrameBuffer, bIsFinal, Opcode, Payload))
+                    {
+                        // Process frame on game thread for safety
+                        AsyncTask(ENamedThreads::GameThread, [this, bIsFinal, Opcode, Payload]() {
+                            if (IsValid(this) && !bShouldShutdown)
+                            {
+                                ProcessReceivedFrame(bIsFinal, Opcode, Payload);
+                            }
+                        });
+                    }
                 }
             }
             else
@@ -1394,46 +1013,6 @@ bool UHorizonWebSocketClient::ProcessHandshakeResponse(const FString& Response)
     });
     
     return true;
-}
-
-bool UHorizonWebSocketClient::CreateWorkerTask(TFunction<void()> TaskFunction)
-{
-    if (!ThreadPool.IsValid())
-    {
-        LogMessage(TEXT("Cannot create worker task: thread pool not initialized"), true);
-        return false;
-    }
-    
-    return ThreadPool->EnqueueTask([this, TaskFunction = MoveTemp(TaskFunction)]() {
-        // Check shutdown flag and object validity early and often
-        if (bShouldShutdown || !IsValid(this))
-        {
-            return true; // Return true to indicate task completion, even if aborted
-        }
-        
-        try
-        {
-            TaskFunction();
-        }
-        catch (const std::exception& e)
-        {
-            if (!bShouldShutdown && IsValid(this))
-            {
-                UE_LOG(LogHorizon, Error, TEXT("Exception in worker task: %s"), UTF8_TO_TCHAR(e.what()));
-                Horizon::WebSocket::FHorizonPerformanceMonitor::Get()->TrackError();
-            }
-        }
-        catch (...)
-        {
-            if (!bShouldShutdown && IsValid(this))
-            {
-                UE_LOG(LogHorizon, Error, TEXT("Unknown exception in worker task"));
-                Horizon::WebSocket::FHorizonPerformanceMonitor::Get()->TrackError();
-            }
-        }
-        
-        return true;
-    });
 }
 
 void UHorizonWebSocketClient::ProcessReceivedFrame(bool bFinal, uint8 Opcode, const TArray<uint8>& Payload)

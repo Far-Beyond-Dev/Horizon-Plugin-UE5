@@ -1,5 +1,6 @@
 #include "Utils/HorizonUtility.h"
 #include "WebSocket/HorizonWebSocketClient.h"
+#include "Framework/HorizonSubsystem.h"
 #include "Core/Horizon.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -8,6 +9,8 @@
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformProcess.h"
 #include "Misc/Paths.h"
+#include "Engine/World.h"
+#include "Engine/GameInstance.h"
 
 bool UHorizonUtility::ParseWebSocketURL(const FString& URL, FString& OutProtocol, FString& OutHost, int32& OutPort, FString& OutPath)
 {
@@ -75,7 +78,7 @@ bool UHorizonUtility::IsValidWebSocketURL(const FString& URL)
 	return false;
 }
 
-FString UHorizonUtility::CreateJSONMessage(const FString& Namespace, const FString& Event, const TMap<FString, FString>& Data, bool bAutoAddUUID, bool bAutoAddTimestamp)
+FString UHorizonUtility::MakeJSONMessage(const FString& Namespace, const FString& Event, const TMap<FString, FString>& Data, bool bAutoAddUUID, bool bAutoAddTimestamp)
 {
 	TSharedPtr<FJsonObject> JsonObject = MakeShareable(new FJsonObject);
 	
@@ -177,48 +180,6 @@ FString UHorizonUtility::GenerateClientID()
 	return Guid.ToString(EGuidFormats::DigitsWithHyphens);
 }
 
-int32 UHorizonUtility::CalculateOptimalBatchSize(int32 AverageMessageSize, int32 MaxThroughputPerSecond)
-{
-	// Safety checks
-	AverageMessageSize = FMath::Max(1, AverageMessageSize);
-	MaxThroughputPerSecond = FMath::Max(1, MaxThroughputPerSecond);
-	
-	// Calculate batch size based on message size and throughput
-	// For small messages, use larger batches
-	// For large messages, use smaller batches
-	
-	const int32 MinBatchSize = 100;        // Increased from 10
-	const int32 MaxBatchSize = 10000;      // Kept the same
-	const int32 DefaultBatchSize = 500;    // New high-performance default
-	
-	// Base calculation: smaller messages = larger batches
-	int32 CalculatedBatchSize = 1000000 / (AverageMessageSize * 10);
-	
-	// Adjust for throughput: higher throughput = larger batches
-	CalculatedBatchSize = CalculatedBatchSize * (MaxThroughputPerSecond / 1000);
-	
-	// Ensure it's at least the default high-performance value
-	CalculatedBatchSize = FMath::Max(CalculatedBatchSize, DefaultBatchSize);
-	
-	// Clamp to reasonable range
-	return FMath::Clamp(CalculatedBatchSize, MinBatchSize, MaxBatchSize);
-}
-
-int32 UHorizonUtility::CalculateOptimalThreadPoolSize(int32 ReserveMainThreadCores)
-{
-	// Get the number of CPU cores
-	int32 NumCores = FPlatformMisc::NumberOfCores();
-	
-	// Reserve cores for the main thread and other processes
-	int32 ReservedCores = FMath::Max(1, ReserveMainThreadCores);
-	
-	// Calculate optimal thread pool size
-	int32 OptimalSize = FMath::Max(1, NumCores - ReservedCores);
-	
-	// Limit to a reasonable maximum
-	return FMath::Min(OptimalSize, 16);
-}
-
 FString UHorizonUtility::FormatBytes(int64 Bytes)
 {
 	const int64 KB = 1024;
@@ -243,17 +204,17 @@ FString UHorizonUtility::FormatBytes(int64 Bytes)
 	}
 }
 
-FString UHorizonUtility::CreateChatMessage(const FString& PlayerID, const FString& Message, const FString& Channel)
+FString UHorizonUtility::MakeChatMessage(const FString& PlayerID, const FString& Message, const FString& Channel)
 {
 	TMap<FString, FString> ChatData;
 	ChatData.Add(TEXT("player_id"), PlayerID);
 	ChatData.Add(TEXT("message"), Message);
 	ChatData.Add(TEXT("channel"), Channel);
 	
-	return CreateJSONMessage(TEXT("chat"), TEXT("message"), ChatData);
+	return MakeJSONMessage(TEXT("chat"), TEXT("message"), ChatData);
 }
 
-FString UHorizonUtility::CreateGameActionMessage(const FString& PlayerID, const FString& Action, const TMap<FString, FString>& AdditionalData)
+FString UHorizonUtility::MakeGameActionMessage(const FString& PlayerID, const FString& Action, const TMap<FString, FString>& AdditionalData)
 {
 	TMap<FString, FString> GameData;
 	GameData.Add(TEXT("player_id"), PlayerID);
@@ -265,10 +226,10 @@ FString UHorizonUtility::CreateGameActionMessage(const FString& PlayerID, const 
 		GameData.Add(Pair.Key, Pair.Value);
 	}
 	
-	return CreateJSONMessage(TEXT("game"), TEXT("player_action"), GameData);
+	return MakeJSONMessage(TEXT("game"), TEXT("player_action"), GameData);
 }
 
-FString UHorizonUtility::CreateSystemMessage(const FString& MessageType, const TMap<FString, FString>& Data)
+FString UHorizonUtility::MakeSystemMessage(const FString& MessageType, const TMap<FString, FString>& Data)
 {
 	TMap<FString, FString> SystemData;
 	SystemData.Add(TEXT("message_type"), MessageType);
@@ -279,10 +240,10 @@ FString UHorizonUtility::CreateSystemMessage(const FString& MessageType, const T
 		SystemData.Add(Pair.Key, Pair.Value);
 	}
 	
-	return CreateJSONMessage(TEXT("system"), MessageType, SystemData);
+	return MakeJSONMessage(TEXT("system"), MessageType, SystemData);
 }
 
-FString UHorizonUtility::CreatePlayerStatusMessage(const FString& PlayerID, const FString& Status, const TMap<FString, FString>& AdditionalData)
+FString UHorizonUtility::MakePlayerStatusMessage(const FString& PlayerID, const FString& Status, const TMap<FString, FString>& AdditionalData)
 {
 	TMap<FString, FString> StatusData;
 	StatusData.Add(TEXT("player_id"), PlayerID);
@@ -294,37 +255,82 @@ FString UHorizonUtility::CreatePlayerStatusMessage(const FString& PlayerID, cons
 		StatusData.Add(Pair.Key, Pair.Value);
 	}
 	
-	return CreateJSONMessage(TEXT("player"), TEXT("status_update"), StatusData);
+	return MakeJSONMessage(TEXT("player"), TEXT("status_update"), StatusData);
 }
 
-bool UHorizonUtility::SendChatMessageNow(UHorizonWebSocketClient* Client, const FString& PlayerID, const FString& Message, const FString& Channel)
+
+
+// WebSocket Creation Functions
+
+UHorizonWebSocketClient* UHorizonUtility::CreateWebSocket(const UObject* WorldContext)
 {
-	if (!Client)
+	UHorizonSubsystem* Subsystem = GetHorizonSubsystem(WorldContext);
+	if (!Subsystem)
+	{
+		return nullptr;
+	}
+
+	UHorizonWebSocketClient* Client = Subsystem->CreateWebSocket();
+	if (Client)
+	{
+		UE_LOG(LogHorizon, Log, TEXT("Created WebSocket client"));
+	}
+
+	return Client;
+}
+
+FString UHorizonUtility::GetPerformanceStatistics(const UObject* WorldContext, bool bIncludeDetailedStats)
+{
+	return TEXT("Performance monitoring has been removed");
+}
+
+FString UHorizonUtility::GetHorizonVersion()
+{
+	return FHorizonModule::GetVersion();
+}
+
+bool UHorizonUtility::IsHorizonFeatureAvailable(const FString& FeatureName)
+{
+	if (FeatureName.Equals(TEXT("WebSocket"), ESearchCase::IgnoreCase))
+	{
+		return FHorizonModule::IsAvailable();
+	}
+	else if (FeatureName.Equals(TEXT("Threading"), ESearchCase::IgnoreCase))
+	{
+		return true;
+	}
+	else if (FeatureName.Equals(TEXT("PerformanceMonitoring"), ESearchCase::IgnoreCase))
 	{
 		return false;
 	}
-	
-	FString ChatMessage = CreateChatMessage(PlayerID, Message, Channel);
-	return Client->SendMessage(ChatMessage, true); // true = high priority (immediate)
-}
-
-bool UHorizonUtility::SendGameActionNow(UHorizonWebSocketClient* Client, const FString& PlayerID, const FString& Action, const TMap<FString, FString>& AdditionalData)
-{
-	if (!Client)
+	else if (FeatureName.Equals(TEXT("BatchSending"), ESearchCase::IgnoreCase))
 	{
-		return false;
+		return true;
 	}
 	
-	FString ActionMessage = CreateGameActionMessage(PlayerID, Action, AdditionalData);
-	return Client->SendMessage(ActionMessage, true); // true = high priority (immediate)
+	return false;
 }
 
-bool UHorizonUtility::SendMessageImmediately(UHorizonWebSocketClient* Client, const FString& Message)
+// Helper Functions
+
+UHorizonSubsystem* UHorizonUtility::GetHorizonSubsystem(const UObject* WorldContext)
 {
-	if (!Client)
+	if (!WorldContext)
 	{
-		return false;
+		return nullptr;
 	}
-	
-	return Client->SendMessage(Message, true); // true = high priority (immediate)
+
+	UWorld* World = GEngine->GetWorldFromContextObject(WorldContext, EGetWorldErrorMode::LogAndReturnNull);
+	if (!World)
+	{
+		return nullptr;
+	}
+
+	UGameInstance* GameInstance = World->GetGameInstance();
+	if (!GameInstance)
+	{
+		return nullptr;
+	}
+
+	return GameInstance->GetSubsystem<UHorizonSubsystem>();
 }

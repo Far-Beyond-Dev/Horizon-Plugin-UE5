@@ -15,27 +15,7 @@
  * and debugging options through the Project Settings UI.
  */
 
-/**
- * @enum EHorizonThreadPriority
- * @brief Thread priority levels for Horizon's background processing
- * 
- * Defines the priority levels available for Horizon's worker threads.
- * Higher priority threads get more CPU time but may impact game performance.
- */
-UENUM(BlueprintType)
-enum class EHorizonThreadPriority : uint8
-{
-	/** Lowest priority - minimal CPU usage */
-	TPri_Lowest  UMETA(DisplayName = "Lowest"),
-	/** Below normal priority - reduced CPU usage */
-	TPri_BelowNormal UMETA(DisplayName = "Below Normal"),
-	/** Normal priority - balanced CPU usage */
-	TPri_Normal  UMETA(DisplayName = "Normal"),
-	/** Above normal priority - increased CPU usage */
-	TPri_AboveNormal UMETA(DisplayName = "Above Normal"),
-	/** Highest priority - maximum CPU usage */
-	TPri_Highest UMETA(DisplayName = "Highest")
-};
+
 
 /**
  * @class UHorizonSettings
@@ -152,100 +132,6 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Logging", meta = (DisplayName = "Log Heartbeat Events", ToolTip = "Log heartbeat/ping message events (may generate frequent log entries)"))
 	bool bLogHeartbeatEvents = false;
 
-	/** @} */
-
-	/**
-	 * @name Performance Settings - Thread Pool
-	 * Configure the thread pool used for background WebSocket operations
-	 * @{
-	 */
-
-	/** Number of worker threads (0 = auto-configure based on CPU cores) */
-	UPROPERTY(Config, EditAnywhere, Category = "Performance|Thread Pool", meta = (DisplayName = "Thread Pool Size", ClampMin = "0", ClampMax = "32", ToolTip = "Number of worker threads in the thread pool (0 = auto-configure based on CPU cores)"))
-	int32 ThreadPoolSize = 0;
-
-	/** Stack size for each worker thread in bytes */
-	UPROPERTY(Config, EditAnywhere, Category = "Performance|Thread Pool", meta = (DisplayName = "Thread Stack Size", ClampMin = "131072", ClampMax = "2097152", ToolTip = "Stack size for each worker thread in bytes"))
-	uint32 ThreadStackSize = 256 * 1024; // 256KB default
-
-	/** Priority level for worker threads */
-	UPROPERTY(Config, EditAnywhere, Category = "Performance|Thread Pool", meta = (DisplayName = "Thread Priority", ToolTip = "Priority level for worker threads (higher priority may impact game performance)"))
-	EHorizonThreadPriority ThreadPriority = EHorizonThreadPriority::TPri_AboveNormal;
-
-	/** @} */
-
-	/**
-	 * @name Performance Settings - Message Pooling
-	 * Configure object pooling for efficient message handling
-	 * @{
-	 */
-
-	/** Enable message object pooling for better performance */
-	UPROPERTY(Config, EditAnywhere, Category = "Performance|Message Pooling", meta = (DisplayName = "Enable Message Pooling", ToolTip = "Enable object pooling for messages to reduce garbage collection"))
-	bool bEnableMessagePooling = true;
-
-	/** Maximum number of pooled message objects */
-	UPROPERTY(Config, EditAnywhere, Category = "Performance|Message Pooling", meta = (DisplayName = "Max Pool Size", ClampMin = "500", ClampMax = "100000", EditCondition = "bEnableMessagePooling", ToolTip = "Maximum number of message objects to keep in the pool"))
-	int32 MaxMessagePoolSize = 5000;
-
-	/** Initial number of pooled message objects */
-	UPROPERTY(Config, EditAnywhere, Category = "Performance|Message Pooling", meta = (DisplayName = "Initial Pool Size", ClampMin = "50", ClampMax = "5000", EditCondition = "bEnableMessagePooling", ToolTip = "Initial number of message objects to allocate in the pool"))
-	int32 InitialMessagePoolSize = 500;
-
-	/** @} */
-
-	/**
-	 * @name Performance Settings - Batching
-	 * Configure message batching for improved network efficiency
-	 * @{
-	 */
-
-	/** Default number of messages to batch together */
-	UPROPERTY(Config, EditAnywhere, Category = "Performance|Batching", meta = (DisplayName = "Default Batch Size", ClampMin = "100", ClampMax = "10000", ToolTip = "Default number of messages to batch together for efficient sending"))
-	int32 DefaultBatchSize = 500;
-
-	/** Maximum time to wait before sending a partial batch */
-	UPROPERTY(Config, EditAnywhere, Category = "Performance|Batching", meta = (DisplayName = "Max Batch Delay", ClampMin = "0.001", ClampMax = "0.5", Units = "s", ToolTip = "Maximum time to wait before sending a partial batch"))
-	float MaxBatchDelay = 0.05f;
-
-	/** @} */
-
-	/**
-	 * @name Performance Settings - Monitoring
-	 * Configure performance monitoring and statistics
-	 * @{
-	 */
-
-	/** How often to update performance monitoring statistics */
-	UPROPERTY(Config, EditAnywhere, Category = "Performance|Monitoring", meta = (DisplayName = "Monitoring Update Interval", ClampMin = "0.05", ClampMax = "2.0", Units = "s", ToolTip = "How often to update performance monitoring statistics"))
-	float PerformanceMonitoringInterval = 0.1f;
-
-	/** @} */
-
-	/**
-	 * @name Performance Settings - General
-	 * General performance and resource management settings
-	 * @{
-	 */
-
-	/** Maximum number of concurrent WebSocket connections (for resource planning) */
-	UPROPERTY(Config, EditAnywhere, Category = "Performance", meta = (DisplayName = "Max Concurrent Connections", ClampMin = "1", ClampMax = "1000", ToolTip = "Maximum number of concurrent WebSocket connections for resource planning"))
-	int32 MaxConcurrentConnections = 100;
-
-	/** How often to clean up unused client resources */
-	UPROPERTY(Config, EditAnywhere, Category = "Performance", meta = (DisplayName = "Client Cleanup Interval", ClampMin = "5.0", ClampMax = "300.0", Units = "s", ToolTip = "How often to clean up unused client resources"))
-	float ClientCleanupInterval = 15.0f;
-
-	/** Maximum number of pending messages before blocking */
-	UPROPERTY(Config, EditAnywhere, Category = "Performance", meta = (DisplayName = "Max Pending Messages", ClampMin = "1000", ClampMax = "1000000", ToolTip = "Maximum number of pending messages before blocking new sends"))
-	int32 MaxPendingMessages = 50000;
-
-	/** Size of the frame buffer for WebSocket communication */
-	UPROPERTY(Config, EditAnywhere, Category = "Performance", meta = (DisplayName = "Frame Buffer Size", ClampMin = "8192", ClampMax = "2097152", ToolTip = "Size of the frame buffer for WebSocket communication in bytes"))
-	int32 FrameBufferSize = 131072; // 128KB default
-
-	/** @} */
-
 	/**
 	 * @name Security Settings
 	 * Security and connection validation settings
@@ -279,10 +165,6 @@ public:
 	/** Enable automatic cleanup of unused resources */
 	UPROPERTY(Config, EditAnywhere, Category = "Advanced", meta = (DisplayName = "Enable Auto Cleanup", ToolTip = "Enable automatic cleanup of unused resources"))
 	bool bEnableAutoCleanup = true;
-
-	/** Enable tracking of performance statistics */
-	UPROPERTY(Config, EditAnywhere, Category = "Advanced", meta = (DisplayName = "Enable Statistics Tracking", ToolTip = "Enable tracking of performance statistics"))
-	bool bEnableStatisticsTracking = true;
 
 	/** Enable broadcasting of events to all listeners */
 	UPROPERTY(Config, EditAnywhere, Category = "Advanced", meta = (DisplayName = "Enable Global Event Broadcasting", ToolTip = "Enable broadcasting of events to all listeners"))
@@ -373,21 +255,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Horizon|Settings", meta = (CallInEditor = "true"))
 	static bool IsVerboseLoggingEnabled();
 
-	/** Get the maximum concurrent connections setting */
-	UFUNCTION(BlueprintPure, Category = "Horizon|Settings", meta = (CallInEditor = "true"))
-	static int32 GetMaxConcurrentConnections();
-
 	/** Check if debug mode is enabled */
 	UFUNCTION(BlueprintPure, Category = "Horizon|Settings", meta = (CallInEditor = "true"))
 	static bool IsDebugModeEnabled();
-
-	/** Get the thread pool size setting */
-	UFUNCTION(BlueprintPure, Category = "Horizon|Settings", meta = (CallInEditor = "true"))
-	static int32 GetThreadPoolSize();
-
-	/** Check if message pooling is enabled */
-	UFUNCTION(BlueprintPure, Category = "Horizon|Settings", meta = (CallInEditor = "true"))
-	static bool IsMessagePoolingEnabled();
 
 	/** @} */
 

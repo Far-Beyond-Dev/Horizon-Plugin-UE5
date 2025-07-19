@@ -1,6 +1,4 @@
 #include "Core/Horizon.h"
-#include "Threading/HorizonThreadPool.h"
-#include "WebSocket/HorizonPerformanceMonitor.h"
 #include "Config/HorizonSettings.h"
 
 #if PLATFORM_WINDOWS
@@ -19,13 +17,9 @@ void FHorizonModule::StartupModule()
 	UE_LOG(LogHorizon, Log, TEXT("Horizon Module v%s starting up"), *GetVersion());
 	
 	bWebSocketInitialized = false;
-	bThreadPoolInitialized = false;
-	bPerformanceMonitoringInitialized = false;
 	
 	// Initialize subsystems in order
-	InitializeThreadPool();
 	InitializeWebSocket();
-	InitializePerformanceMonitoring();
 	
 	UE_LOG(LogHorizon, Log, TEXT("Horizon Module initialized successfully"));
 }
@@ -35,9 +29,7 @@ void FHorizonModule::ShutdownModule()
 	UE_LOG(LogHorizon, Log, TEXT("Horizon Module shutting down"));
 	
 	// Shutdown in reverse order
-	ShutdownPerformanceMonitoring();
 	ShutdownWebSocket();
-	ShutdownThreadPool();
 	
 	UE_LOG(LogHorizon, Log, TEXT("Horizon Module shutdown complete"));
 }
@@ -69,83 +61,6 @@ void FHorizonModule::ShutdownWebSocket()
 #endif
 		bWebSocketInitialized = false;
 		UE_LOG(LogHorizon, Log, TEXT("Horizon WebSocket system shutdown"));
-	}
-}
-
-void FHorizonModule::InitializeThreadPool()
-{
-	// Get thread pool size from settings
-	int32 ThreadPoolSize = 0;
-	if (const UHorizonSettings* Settings = GetDefault<UHorizonSettings>())
-	{
-		ThreadPoolSize = Settings->ThreadPoolSize;
-	}
-	
-	// Initialize thread pool
-	auto ThreadPoolInstance = Horizon::Threading::FThreadPool::Get();
-	if (ThreadPoolInstance.IsValid())
-	{
-		bThreadPoolInitialized = true;
-		UE_LOG(LogHorizon, Log, TEXT("Horizon thread pool initialized with %d threads"), 
-			ThreadPoolInstance->GetThreadCount());
-	}
-	else
-	{
-		UE_LOG(LogHorizon, Warning, TEXT("Failed to initialize Horizon thread pool"));
-	}
-}
-
-void FHorizonModule::ShutdownThreadPool()
-{
-	if (bThreadPoolInitialized)
-	{
-		// Shutdown thread pool
-		auto ThreadPoolInstance = Horizon::Threading::FThreadPool::Get();
-		if (ThreadPoolInstance.IsValid())
-		{
-			ThreadPoolInstance->Shutdown();
-		}
-		bThreadPoolInitialized = false;
-		UE_LOG(LogHorizon, Log, TEXT("Horizon thread pool shutdown"));
-	}
-}
-
-void FHorizonModule::InitializePerformanceMonitoring()
-{
-	// Initialize performance monitoring (always enabled)
-	auto PerformanceMonitor = Horizon::WebSocket::FHorizonPerformanceMonitor::Get();
-	if (PerformanceMonitor.IsValid())
-	{
-		int32 ThreadPoolSize = 0;
-		auto ThreadPoolInstance = Horizon::Threading::FThreadPool::Get();
-		if (ThreadPoolInstance.IsValid())
-		{
-			ThreadPoolSize = ThreadPoolInstance->GetThreadCount();
-		}
-		
-		PerformanceMonitor->Initialize(ThreadPoolSize);
-		bPerformanceMonitoringInitialized = true;
-		UE_LOG(LogHorizon, Log, TEXT("Horizon performance monitoring initialized"));
-	}
-	else
-	{
-		UE_LOG(LogHorizon, Warning, TEXT("Failed to initialize Horizon performance monitoring"));
-	}
-}
-
-void FHorizonModule::ShutdownPerformanceMonitoring()
-{
-	if (bPerformanceMonitoringInitialized)
-	{
-		// Shutdown performance monitoring
-		auto PerformanceMonitor = Horizon::WebSocket::FHorizonPerformanceMonitor::Get();
-		if (PerformanceMonitor.IsValid())
-		{
-			// Set inactive to effectively shut down
-			PerformanceMonitor->SetActive(false);
-		}
-		bPerformanceMonitoringInitialized = false;
-		UE_LOG(LogHorizon, Log, TEXT("Horizon performance monitoring shutdown"));
 	}
 }
 
