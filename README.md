@@ -1,6 +1,6 @@
 # Horizon WebSocket Plugin for Unreal Engine 5
 
-A simple, lightweight WebSocket client implementation for Unreal Engine 5, designed for real-time communication with custom servers. Built with a clean, straightforward architecture inspired by SocketIOClient.
+A simple, lightweight WebSocket client implementation for Unreal Engine 5, designed for real-time communication with Horizon.
 
 ## 🚀 Key Features
 
@@ -9,12 +9,10 @@ A simple, lightweight WebSocket client implementation for Unreal Engine 5, desig
 - ✅ **Auto-Reconnection**: Configurable reconnection with simple retry logic
 - ✅ **Immediate Sending**: All messages send immediately for low latency
 - ✅ **Blueprint Compatible**: Full Blueprint node support with intuitive API
-- ✅ **WebSocket Compliant**: Full RFC 6455 implementation with WSS support
-- ✅ **Single-Client Architecture**: Optimized for single-player games and applications
 
 ## 🏗️ Architecture Overview
 
-The Horizon WebSocket Plugin follows a clean, simple architecture inspired by SocketIOClient:
+The Horizon WebSocket Plugin follows a clean, simple architecture:
 
 ```mermaid
 graph TD
@@ -496,13 +494,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 📞 Support
-
-For support, please:
-1. Check the [Issues](https://github.com/your-repo/horizon-plugin/issues) page
-2. Review the troubleshooting section above
-3. Enable debug logging for detailed diagnostics
 
 ---
 
